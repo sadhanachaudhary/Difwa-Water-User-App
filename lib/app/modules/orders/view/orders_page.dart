@@ -322,7 +322,20 @@ class _OrderDetailsSheet extends StatelessWidget {
           ...order.items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(4)), child: Text('${item.quantity}x', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))), const SizedBox(width: 12), Expanded(child: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B)))), Text('₹${(item.price * item.quantity).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold))]))),
           const Divider(height: 40),
           const Text('BILL DETAILS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
-          _row('Item Total', order.total - order.deliveryFee),
+          _row('Item Total', order.total - order.deliveryFee - order.bottleDepositFee),
+          if (order.bottleDepositFee > 0)
+            _row('Bottle Deposit Fee', order.bottleDepositFee),
+          if (order.hasEmptyBottles)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Returned Bottles', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text('${order.returnedBottlesCount} Units', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
           _row('Delivery Fee', order.deliveryFee),
           const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Grand Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text('₹${order.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A)))]),

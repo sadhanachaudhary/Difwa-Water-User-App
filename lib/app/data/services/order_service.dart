@@ -17,12 +17,22 @@ class OrderService {
     required String paymentMethod,
     String? deliverySlot,
     Map<String, double>? coordinates,
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     try {
       // Add coordinates to deliveryAddress if available
       final Map<String, dynamic> finalDeliveryAddress = Map.from(deliveryAddress);
       if (coordinates != null) {
         finalDeliveryAddress['coordinates'] = coordinates;
+      }
+      if (floorNumber != null) {
+        finalDeliveryAddress['floorNumber'] = floorNumber;
+      }
+      if (hasLift != null) {
+        finalDeliveryAddress['hasLift'] = hasLift;
       }
 
       final response = await _apiClient.post(
@@ -34,6 +44,10 @@ class OrderService {
           'paymentMethod': paymentMethod,
           'orderType': 'One-time',
           if (deliverySlot != null) 'deliverySlot': deliverySlot,
+          if (hasEmptyBottles != null) 'hasEmptyBottles': hasEmptyBottles,
+          if (returnedBottlesCount != null) 'returnedBottlesCount': returnedBottlesCount,
+          if (floorNumber != null) 'floorNumber': floorNumber,
+          if (hasLift != null) 'hasLift': hasLift,
         },
         requiresAuth: true,
       );
@@ -59,6 +73,11 @@ class OrderService {
     required String vendorId,
     required double userLat,
     required double userLng,
+    List<Map<String, dynamic>>? items,
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     try {
       final response = await _apiClient.post(
@@ -67,6 +86,11 @@ class OrderService {
           'vendorId': vendorId,
           'userLat': userLat,
           'userLng': userLng,
+          if (items != null) 'items': items,
+          if (hasEmptyBottles != null) 'hasEmptyBottles': hasEmptyBottles,
+          if (returnedBottlesCount != null) 'returnedBottlesCount': returnedBottlesCount,
+          if (floorNumber != null) 'floorNumber': floorNumber,
+          if (hasLift != null) 'hasLift': hasLift,
         },
         requiresAuth: true,
       );

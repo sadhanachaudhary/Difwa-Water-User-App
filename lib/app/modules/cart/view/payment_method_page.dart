@@ -350,6 +350,184 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  const Text('Empty Bottle Exchange',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937))),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF00ACC1).withOpacity(0.2),
+                        width: 1.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.cached_rounded, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Do you have empty bottles to return?',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Color(0xFF1F2937)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Waive deposit charge by exchanging empty bottles.',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  cartProvider.setHasEmptyBottles(false);
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: !cartProvider.hasEmptyBottles
+                                      ? AppColors.primary
+                                      : Colors.white,
+                                  side: BorderSide(
+                                    color: !cartProvider.hasEmptyBottles
+                                        ? AppColors.primary
+                                        : const Color(0xFF00ACC1).withOpacity(0.2),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: Text(
+                                  'No, pay deposit',
+                                  style: TextStyle(
+                                    color: !cartProvider.hasEmptyBottles
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  cartProvider.setHasEmptyBottles(true);
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: cartProvider.hasEmptyBottles
+                                      ? AppColors.primary
+                                      : Colors.white,
+                                  side: BorderSide(
+                                    color: cartProvider.hasEmptyBottles
+                                        ? AppColors.primary
+                                        : const Color(0xFF00ACC1).withOpacity(0.2),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: Text(
+                                  'Yes, exchange',
+                                  style: TextStyle(
+                                    color: cartProvider.hasEmptyBottles
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (cartProvider.hasEmptyBottles) ...[
+                          const SizedBox(height: 16),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Returned Bottles Count:',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade800),
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: cartProvider.returnedBottlesCount > 0
+                                        ? () {
+                                            cartProvider.setReturnedBottlesCount(
+                                                cartProvider.returnedBottlesCount - 1);
+                                          }
+                                        : null,
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    color: AppColors.primary,
+                                    disabledColor: Colors.grey.shade300,
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 40),
+                                    child: Text(
+                                      '${cartProvider.returnedBottlesCount}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold, fontSize: 15),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      cartProvider.setReturnedBottlesCount(
+                                          cartProvider.returnedBottlesCount + 1);
+                                    },
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    color: AppColors.primary,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   const Text('Order Summary',
                       style: TextStyle(
                           fontSize: 16,
@@ -411,6 +589,74 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                               ),
                           ],
                         ),
+                        if (cartProvider.bottleDepositFee > 0) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Bottle Deposit Charge',
+                                  style: TextStyle(color: Colors.grey)),
+                              Text(
+                                '₹${cartProvider.bottleDepositFee.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (cartProvider.weatherSurgeFee > 0) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Weather Surge Fee 🌦️',
+                                  style: TextStyle(color: Colors.grey)),
+                              Text(
+                                '₹${cartProvider.weatherSurgeFee.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (cartProvider.nightSurgeFee > 0) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Night Delivery Surge 🌙',
+                                  style: TextStyle(color: Colors.grey)),
+                              Text(
+                                '₹${cartProvider.nightSurgeFee.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (cartProvider.floorChargeFee > 0) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Building Floor Charge 🏢',
+                                  style: TextStyle(color: Colors.grey)),
+                              Text(
+                                '₹${cartProvider.floorChargeFee.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1024,6 +1270,8 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                                 startDate: _startDate,
                                 deliverySlot: _selectedSlot,
                                 paymentMethod: _subscriptionPaymentType,
+                                hasEmptyBottles: cartProvider.hasEmptyBottles,
+                                returnedBottlesCount: cartProvider.returnedBottlesCount,
                               );
                               if (res['success'] != true) {
                                 final String errMsg = res['message'] ?? '';
@@ -1057,6 +1305,8 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                                 deliveryAddress: deliveryAddressMap,
                                 paymentMethod: _paymentMethod,
                                 deliverySlot: _selectedSlot,
+                                hasEmptyBottles: cartProvider.hasEmptyBottles,
+                                returnedBottlesCount: cartProvider.returnedBottlesCount,
                                 coordinates: (selectedAddr.latitude != null &&
                                         selectedAddr.longitude != null)
                                     ? {

@@ -98,6 +98,33 @@ class CartProvider extends ChangeNotifier {
   double get walletBalance => _walletBalance;
   List<dynamic> get transactions => _transactions;
 
+  bool _hasEmptyBottles = false;
+  int _returnedBottlesCount = 0;
+  double _bottleDepositFee = 0.0;
+
+  bool get hasEmptyBottles => _hasEmptyBottles;
+  int get returnedBottlesCount => _returnedBottlesCount;
+  double get bottleDepositFee => _bottleDepositFee;
+
+  void setHasEmptyBottles(bool val) {
+    if (_hasEmptyBottles != val) {
+      _hasEmptyBottles = val;
+      if (!val) {
+        _returnedBottlesCount = 0;
+      }
+      notifyListeners();
+      updateDeliveryCharge();
+    }
+  }
+
+  void setReturnedBottlesCount(int val) {
+    if (_returnedBottlesCount != val) {
+      _returnedBottlesCount = val;
+      notifyListeners();
+      updateDeliveryCharge();
+    }
+  }
+
   bool _isWalletSyncing = false;
   Future<void> syncWallet() async {
     if (_walletService == null || _isWalletSyncing) return;
@@ -176,6 +203,9 @@ class CartProvider extends ChangeNotifier {
   
   // ── Delivery Charge Logic ──────────────────────────────────────────────
   double _deliveryFee = 0.0;
+  double _weatherSurgeFee = 0.0;
+  double _nightSurgeFee = 0.0;
+  double _floorChargeFee = 0.0;
   bool _isDeliverable = true;
   String _deliveryMessage = '';
   bool _isCalculatingDelivery = false;
@@ -183,6 +213,9 @@ class CartProvider extends ChangeNotifier {
   String? _lastCalculatedCartHash;
 
   double get deliveryFee => _deliveryFee;
+  double get weatherSurgeFee => _weatherSurgeFee;
+  double get nightSurgeFee => _nightSurgeFee;
+  double get floorChargeFee => _floorChargeFee;
   bool get isDeliverable => _isDeliverable;
   String get deliveryMessage => _deliveryMessage;
   bool get isCalculatingDelivery => _isCalculatingDelivery;
@@ -245,14 +278,32 @@ class CartProvider extends ChangeNotifier {
         }
       }
 
+      final itemsMap = _items
+          .map((item) => {
+                'product': item.id,
+                'retailer': item.shopId,
+                'quantity': item.quantity,
+                'price': item.unitPrice,
+              })
+          .toList();
+
       final result = await _orderService!.calculateDeliveryCharge(
         vendorId: vendorId,
         userLat: userLat,
         userLng: userLng,
+        items: itemsMap,
+        hasEmptyBottles: _hasEmptyBottles,
+        returnedBottlesCount: _returnedBottlesCount,
+        floorNumber: addr.floorNumber,
+        hasLift: addr.hasLift,
       );
 
       if (result['success']) {
         _deliveryFee = (result['deliveryFee'] as num? ?? 0.0).toDouble();
+        _bottleDepositFee = (result['bottleDepositFee'] as num? ?? 0.0).toDouble();
+        _weatherSurgeFee = (result['weatherSurgeFee'] as num? ?? 0.0).toDouble();
+        _nightSurgeFee = (result['nightSurgeFee'] as num? ?? 0.0).toDouble();
+        _floorChargeFee = (result['floorChargeFee'] as num? ?? 0.0).toDouble();
         _isDeliverable = result['deliverable'] ?? true;
         _deliveryMessage = result['message'] ?? '';
         _lastCalculatedAddressId = addr.id;
@@ -465,6 +516,8 @@ class CartProvider extends ChangeNotifier {
           isDefault: address.isDefault,
           latitude: lat,
           longitude: lng,
+          floorNumber: address.floorNumber,
+          hasLift: address.hasLift,
         );
         final bool isSuccess = result['success'] == true || result['data'] != null || result['_id'] != null;
         if (isSuccess) {
@@ -553,6 +606,8 @@ class CartProvider extends ChangeNotifier {
             isDefault: json['isDefault'] ?? false,
             latitude: lat,
             longitude: lng,
+            floorNumber: json['floorNumber'] != null ? int.tryParse(json['floorNumber'].toString()) : null,
+            hasLift: json['hasLift'] == true,
           );
         }).toList();
 
@@ -632,6 +687,8 @@ class CartProvider extends ChangeNotifier {
           isDefault: address.isDefault,
           latitude: lat,
           longitude: lng,
+          floorNumber: address.floorNumber,
+          hasLift: address.hasLift,
         );
         final bool isSuccess = result['success'] == true || result['data'] != null || result['_id'] != null;
         if (isSuccess) {
@@ -690,7 +747,7 @@ class CartProvider extends ChangeNotifier {
   }
 
   double get shippingCharges => _deliveryFee;
-  double get total => subtotal + shippingCharges;
+  double get total => subtotal + shippingCharges + _bottleDepositFee + _weatherSurgeFee + _nightSurgeFee + _floorChargeFee;
 
   bool isInCart(String title) {
     return _items.any((item) => item.title == title && item.quantity > 0);
@@ -849,6 +906,10 @@ class CartProvider extends ChangeNotifier {
       deliveryAddress: deliveryAddress,
       paymentMethod: paymentMethod,
       deliverySlot: deliverySlot,
+      hasEmptyBottles: _hasEmptyBottles,
+      returnedBottlesCount: _returnedBottlesCount,
+      floorNumber: addr.floorNumber,
+      hasLift: addr.hasLift,
     );
 
     if (result['success']) {

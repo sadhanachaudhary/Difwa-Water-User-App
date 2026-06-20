@@ -753,6 +753,22 @@ class _OrderTrackingPageState extends ConsumerState<OrderTrackingPage> {
                 ),
                 const Divider(height: 20, color: Color(0xFFEEEEEE)),
               ],
+              if (_order['bottleDepositFee'] != null && (_order['bottleDepositFee'] as num) > 0) ...[
+                _summaryRow(
+                  'Bottle Deposit Fee',
+                  '₹${_order['bottleDepositFee'].toString()}',
+                  icon: Icons.cached_rounded,
+                ),
+                const Divider(height: 20, color: Color(0xFFEEEEEE)),
+              ],
+              if (_order['hasEmptyBottles'] == true || _order['hasEmptyBottles'] == 'true') ...[
+                _summaryRow(
+                  'Returned Bottles',
+                  '${_order['returnedBottlesCount']?.toString() ?? "0"} Units',
+                  icon: Icons.assignment_return_outlined,
+                ),
+                const Divider(height: 20, color: Color(0xFFEEEEEE)),
+              ],
               if (totalAmount != null)
                 _summaryRow(
                   'Total Amount',

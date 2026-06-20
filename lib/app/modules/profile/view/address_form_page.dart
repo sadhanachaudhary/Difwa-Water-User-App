@@ -23,7 +23,9 @@ class _AddressFormPageState extends State<AddressFormPage> {
   late TextEditingController _cityCtrl;
   late TextEditingController _stateCtrl;
   late TextEditingController _pincodeCtrl;
+  late TextEditingController _floorNumberCtrl;
   late bool _isDefault;
+  late bool _hasLift;
   double? _latitude;
   double? _longitude;
 
@@ -34,6 +36,8 @@ class _AddressFormPageState extends State<AddressFormPage> {
     _streetCtrl = TextEditingController(text: widget.address?.street ?? '');
     _latitude = widget.address?.latitude;
     _longitude = widget.address?.longitude;
+    _floorNumberCtrl = TextEditingController(text: widget.address?.floorNumber?.toString() ?? '0');
+    _hasLift = widget.address?.hasLift ?? true;
 
     // Parse details string back to discrete parts if editing
     String city = '';
@@ -63,6 +67,8 @@ class _AddressFormPageState extends State<AddressFormPage> {
       pincode = widget.initialData!['pincode'] ?? '';
       _latitude = widget.initialData!['latitude'];
       _longitude = widget.initialData!['longitude'];
+      _floorNumberCtrl.text = widget.initialData!['floorNumber']?.toString() ?? '0';
+      _hasLift = widget.initialData!['hasLift'] == true;
     }
 
     _cityCtrl = TextEditingController(text: city);
@@ -91,6 +97,7 @@ class _AddressFormPageState extends State<AddressFormPage> {
     _cityCtrl.dispose();
     _stateCtrl.dispose();
     _pincodeCtrl.dispose();
+    _floorNumberCtrl.dispose();
     super.dispose();
   }
 
@@ -192,6 +199,8 @@ class _AddressFormPageState extends State<AddressFormPage> {
           isDefault: _isDefault,
           latitude: _latitude,
           longitude: _longitude,
+          floorNumber: int.tryParse(_floorNumberCtrl.text) ?? 0,
+          hasLift: _hasLift,
         );
 
         Map<String, dynamic> result;
@@ -375,6 +384,56 @@ class _AddressFormPageState extends State<AddressFormPage> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildField(
+                      controller: _floorNumberCtrl,
+                      label: 'Floor Number *',
+                      hint: 'e.g. 3',
+                      icon: Icons.layers_outlined,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lift Available?',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Transform.scale(
+                              scale: 0.9,
+                              child: Switch(
+                                value: _hasLift,
+                                onChanged: (v) => setState(() => _hasLift = v),
+                                activeThumbColor: AppColors.primary,
+                                activeTrackColor: AppColors.primaryLight,
+                              ),
+                            ),
+                            Text(
+                              _hasLift ? 'Yes' : 'No',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Row(

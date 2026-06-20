@@ -218,6 +218,8 @@ class SubscriptionService {
     DateTime? startDate,
     String? deliverySlot,
     String paymentMethod = 'Wallet', // 'Wallet' (upfront) or 'PayLater'
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
   }) async {
     try {
       final payload = {
@@ -229,6 +231,8 @@ class SubscriptionService {
         'startDate': startDate?.toIso8601String(),
         if (deliverySlot != null) 'deliverySlot': deliverySlot,
         'paymentMethod': paymentMethod,
+        if (hasEmptyBottles != null) 'hasEmptyBottles': hasEmptyBottles,
+        if (returnedBottlesCount != null) 'returnedBottlesCount': returnedBottlesCount,
       };
 
       final json = await _client.post(
