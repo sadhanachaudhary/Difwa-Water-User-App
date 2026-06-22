@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -33,6 +34,12 @@ class _RiderOrderDetailsPageState extends ConsumerState<RiderOrderDetailsPage> {
   late String _liveStatus;
   Map<String, dynamic>? _fetchedOrder;
   SocketService? _socket;
+
+  // ── Cancellation flow state ───────────────────────────────────────────────
+  bool _cancelInitiated = false;
+  int _countdownSeconds = 300; // 5 minutes
+  Timer? _countdownTimer;
+  bool _isCancelLoading = false;
 
   @override
   void initState() {
@@ -78,6 +85,7 @@ class _RiderOrderDetailsPageState extends ConsumerState<RiderOrderDetailsPage> {
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     final orderId = widget.order['orderId']?.toString() ?? '';
     if (orderId.isNotEmpty) {
       _socket?.leaveOrderRoom(orderId);
@@ -86,8 +94,156 @@ class _RiderOrderDetailsPageState extends ConsumerState<RiderOrderDetailsPage> {
     super.dispose();
   }
 
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        if (_countdownSeconds > 0) {
+          _countdownSeconds--;
+        } else {
+          t.cancel();
+        }
+      });
+    });
+  }
+
+  Future<void> _showCancelDialog(String cancelOrderId) async {
+    final reasons = [
+      'Customer not home',
+      'Refused delivery',
+      'Wrong address',
+      'Customer unreachable',
+      'Other',
+    ];
+    String selectedReason = reasons.first;
+    final TextEditingController otherController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Cancel Order',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select a reason:',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 10),
+              ...reasons.map((r) => GestureDetector(
+                    onTap: () => setDialogState(() => selectedReason = r),
+                    child: Row(
+                      children: [
+                        Radio<String>(
+                          value: r,
+                          groupValue: selectedReason,
+                          activeColor: AppColors.accentGreen,
+                          onChanged: (v) =>
+                              setDialogState(() => selectedReason = v ?? r),
+                        ),
+                        Text(r, style: const TextStyle(fontSize: 14)),
+                      ],
+                    ),
+                  )),
+              if (selectedReason == 'Other') ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: otherController,
+                  decoration: const InputDecoration(
+                    hintText: 'Describe the reason...',
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Back'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Initiate Cancel',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final reason = selectedReason == 'Other'
+        ? otherController.text.trim().isNotEmpty
+            ? otherController.text.trim()
+            : 'Other'
+        : selectedReason;
+
+    setState(() => _isCancelLoading = true);
+    final res = await ref
+        .read(riderServiceProvider)
+        .initiateCancellation(orderId: cancelOrderId, reason: reason);
+    if (!mounted) return;
+    setState(() => _isCancelLoading = false);
+
+    if (res['success'] == true) {
+      setState(() {
+        _cancelInitiated = true;
+        _countdownSeconds = 300;
+      });
+      _startCountdown();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Cancellation timer started. Wait 5 minutes.'),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } else {
+      final msg = res['message']?.toString() ?? 'Failed to initiate cancellation.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
+  }
+
+  Future<void> _confirmCancellation(String cancelOrderId) async {
+    setState(() => _isCancelLoading = true);
+    final res = await ref
+        .read(riderServiceProvider)
+        .confirmCancellation(orderId: cancelOrderId);
+    if (!mounted) return;
+    setState(() => _isCancelLoading = false);
+
+    if (res['success'] == true) {
+      ref.invalidate(riderOrdersProvider);
+      Navigator.of(context).pop();
+    } else {
+      final msg = res['message']?.toString() ?? 'Could not confirm cancellation.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
+  }
+
   Future<void> _callCustomer(String phone) async {
     if (phone.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No phone number available')));
       return;
@@ -103,6 +259,7 @@ class _RiderOrderDetailsPageState extends ConsumerState<RiderOrderDetailsPage> {
 
   Future<void> _openMaps(String address) async {
     if (address.isEmpty || address == 'N/A') {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('No address available')));
       return;
@@ -379,18 +536,108 @@ class _RiderOrderDetailsPageState extends ConsumerState<RiderOrderDetailsPage> {
 
             const SizedBox(height: 24),
 
-            // Status Buttons REMOVED as per request. Use Dashboard for actions.
-            const SizedBox(height: 20),
-            const Center(
-              child: Text(
-                'Use the main Dashboard to update order status.',
-                style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
-              ),
-            ),
+            // ── Cancellation Flow ──────────────────────────────────────────
+            if (!['delivered', 'cancelled', 'rejected', 'completed']
+                .contains(status.toLowerCase())) ...[
+              const SizedBox(height: 8),
+              _buildCancelSection(order),
+            ],
             const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  // ── Cancel section ──────────────────────────────────────────────────────────
+
+  Widget _buildCancelSection(Map<String, dynamic> order) {
+    final cancelOrderId = order['_id']?.toString() ??
+        order['id']?.toString() ??
+        widget.orderId ??
+        order['orderId']?.toString() ??
+        '';
+
+    if (cancelOrderId.isEmpty) return const SizedBox.shrink();
+
+    final mins = (_countdownSeconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (_countdownSeconds % 60).toString().padLeft(2, '0');
+    final timerDone = _countdownSeconds == 0;
+
+    return _SectionCard(
+      title: 'Cancel Order',
+      child: _isCancelLoading
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: CircularProgressIndicator(color: Colors.red),
+              ),
+            )
+          : !_cancelInitiated
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Cancelling requires a 5-minute wait to prevent accidental cancellations.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => _showCancelDialog(cancelOrderId),
+                      icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                      label: const Text('Cancel Order',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.timer_outlined,
+                            color: Colors.orange, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          timerDone
+                              ? 'Timer complete — you can confirm now.'
+                              : 'Wait $mins:$secs before confirming.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: timerDone
+                                ? AppColors.accentGreen
+                                : Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: timerDone
+                          ? () => _confirmCancellation(cancelOrderId)
+                          : null,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Confirm Cancellation',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 }

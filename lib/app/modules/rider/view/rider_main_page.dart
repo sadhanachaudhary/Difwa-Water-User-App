@@ -40,6 +40,7 @@ class _RiderMainPageState extends State<RiderMainPage> {
         if (_lastPressedAt == null ||
             now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
           _lastPressedAt = now;
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(

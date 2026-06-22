@@ -204,6 +204,183 @@ class _OrderTrackingPageState extends ConsumerState<OrderTrackingPage> {
     );
   }
 
+  bool get _canCancel {
+    final status = (_order['status']?.toString() ?? 'Pending').toLowerCase().trim();
+    return status != 'delivered' &&
+           status != 'completed' &&
+           status != 'cancelled' &&
+           status != 'canceled';
+  }
+
+  bool get _isCancelled {
+    final status = (_order['status']?.toString() ?? 'Pending').toLowerCase().trim();
+    return status == 'cancelled' || status == 'canceled';
+  }
+
+  void _showCancelDialog() {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final textController = TextEditingController();
+    bool isSubmitting = false;
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: !isSubmitting,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text(
+                'Cancel Order',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+              ),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Are you sure you want to cancel this order? Please tell us why:',
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: textController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: 'Enter reason (e.g., I changed my mind)',
+                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF0891B2), width: 1.5),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please provide a reason';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Go Back', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (formKey.currentState?.validate() ?? false) {
+                            setStateDialog(() {
+                              isSubmitting = true;
+                            });
+
+                            final reason = textController.text.trim();
+                            final mongoId = _order['_id']?.toString() ?? '';
+                            final result = await ref
+                                .read(orderServiceProvider)
+                                .cancelOrder(orderId: mongoId, reason: reason);
+
+                            if (!mounted) return;
+
+                            if (result['success'] == true) {
+                              Navigator.pop(dialogContext); // close dialog
+
+                              // Show appropriate snackbar based on scenario
+                              final scenario = result['scenario']?.toString();
+                              final message = result['message']?.toString() ?? 'Order cancelled successfully';
+
+                              if (scenario == 'instant_refund') {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Order cancelled. Refund added to wallet!'),
+                                    backgroundColor: Colors.green.shade600,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              } else if (scenario == 'pending_approval') {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Order cancelled. Refund is under admin review.'),
+                                    backgroundColor: Colors.orange.shade800,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              } else {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(message),
+                                    backgroundColor: Colors.cyan.shade800,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+
+                              // Refresh active order list provider
+                              try {
+                                ref.read(activeOrdersProvider.notifier).refresh();
+                              } catch (e) {
+                                debugPrint('Error refreshing active orders provider: $e');
+                              }
+
+                              // Update local state to trigger UI update
+                              setState(() {
+                                _order['status'] = 'Cancelled';
+                                _statusHistory.add({
+                                  'status': 'Cancelled',
+                                  'role': 'user',
+                                  'timestamp': DateTime.now().toIso8601String(),
+                                });
+                              });
+                            } else {
+                              setStateDialog(() {
+                                isSubmitting = false;
+                              });
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(result['message'] ?? 'Failed to cancel order'),
+                                  backgroundColor: Colors.red.shade600,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Cancel Order', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -449,7 +626,64 @@ class _OrderTrackingPageState extends ConsumerState<OrderTrackingPage> {
         ),
       ),
     ),
-  );
+      bottomNavigationBar: _canCancel
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _showCancelDialog,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade600,
+                      side: BorderSide(color: Colors.red.shade200, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel Order',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : _isCancelled
+              ? SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: null,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade400,
+                          side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Order Cancelled',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+    );
 }
 
   Widget _buildOrderSummary() {
@@ -516,6 +750,22 @@ class _OrderTrackingPageState extends ConsumerState<OrderTrackingPage> {
                   'Delivery Fee',
                   '₹${deliveryFee.toString()}',
                   icon: Icons.local_shipping,
+                ),
+                const Divider(height: 20, color: Color(0xFFEEEEEE)),
+              ],
+              if (_order['bottleDepositFee'] != null && (_order['bottleDepositFee'] as num) > 0) ...[
+                _summaryRow(
+                  'Bottle Deposit Fee',
+                  '₹${_order['bottleDepositFee'].toString()}',
+                  icon: Icons.cached_rounded,
+                ),
+                const Divider(height: 20, color: Color(0xFFEEEEEE)),
+              ],
+              if (_order['hasEmptyBottles'] == true || _order['hasEmptyBottles'] == 'true') ...[
+                _summaryRow(
+                  'Returned Bottles',
+                  '${_order['returnedBottlesCount']?.toString() ?? "0"} Units',
+                  icon: Icons.assignment_return_outlined,
                 ),
                 const Divider(height: 20, color: Color(0xFFEEEEEE)),
               ],

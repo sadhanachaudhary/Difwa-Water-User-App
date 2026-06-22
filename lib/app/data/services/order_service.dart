@@ -17,12 +17,22 @@ class OrderService {
     required String paymentMethod,
     String? deliverySlot,
     Map<String, double>? coordinates,
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     try {
       // Add coordinates to deliveryAddress if available
       final Map<String, dynamic> finalDeliveryAddress = Map.from(deliveryAddress);
       if (coordinates != null) {
         finalDeliveryAddress['coordinates'] = coordinates;
+      }
+      if (floorNumber != null) {
+        finalDeliveryAddress['floorNumber'] = floorNumber;
+      }
+      if (hasLift != null) {
+        finalDeliveryAddress['hasLift'] = hasLift;
       }
 
       final response = await _apiClient.post(
@@ -34,6 +44,10 @@ class OrderService {
           'paymentMethod': paymentMethod,
           'orderType': 'One-time',
           if (deliverySlot != null) 'deliverySlot': deliverySlot,
+          if (hasEmptyBottles != null) 'hasEmptyBottles': hasEmptyBottles,
+          if (returnedBottlesCount != null) 'returnedBottlesCount': returnedBottlesCount,
+          if (floorNumber != null) 'floorNumber': floorNumber,
+          if (hasLift != null) 'hasLift': hasLift,
         },
         requiresAuth: true,
       );
@@ -44,9 +58,13 @@ class OrderService {
         'message': response['message'],
       };
     } catch (e) {
+      String msg = e.toString();
+      if (e is ApiException) {
+        msg = e.message;
+      }
       return {
         'success': false,
-        'message': e.toString(),
+        'message': msg,
       };
     }
   }
@@ -55,6 +73,11 @@ class OrderService {
     required String vendorId,
     required double userLat,
     required double userLng,
+    List<Map<String, dynamic>>? items,
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     try {
       final response = await _apiClient.post(
@@ -63,6 +86,11 @@ class OrderService {
           'vendorId': vendorId,
           'userLat': userLat,
           'userLng': userLng,
+          if (items != null) 'items': items,
+          if (hasEmptyBottles != null) 'hasEmptyBottles': hasEmptyBottles,
+          if (returnedBottlesCount != null) 'returnedBottlesCount': returnedBottlesCount,
+          if (floorNumber != null) 'floorNumber': floorNumber,
+          if (hasLift != null) 'hasLift': hasLift,
         },
         requiresAuth: true,
       );
@@ -133,9 +161,13 @@ class OrderService {
         'message': response['message'],
       };
     } catch (e) {
+      String msg = e.toString();
+      if (e is ApiException) {
+        msg = e.message;
+      }
       return {
         'success': false,
-        'message': e.toString(),
+        'message': msg,
       };
     }
   }
@@ -251,6 +283,29 @@ class OrderService {
       return {};
     }
   }
+
+  Future<Map<String, dynamic>> cancelOrder({
+    required String orderId,
+    required String reason,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '${ApiClient.baseUrl}/orders/$orderId/cancel',
+        data: {'reason': reason},
+        requiresAuth: true,
+      );
+      return {
+        'success': response['success'] ?? true,
+        'scenario': response['scenario'],
+        'message': response['message'] ?? 'Order cancelled successfully',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
+    }
+  }
 }
 
 final orderServiceProvider = Provider<OrderService>((ref) {
@@ -287,14 +342,18 @@ class ActiveOrdersNotifier extends AsyncNotifier<List<UserOrder>> {
 
         if (index != -1) {
           final updatedOrders = List<UserOrder>.from(currentOrders);
-          updatedOrders[index] = updatedOrders[index].copyWith(status: newStatus);
+          final statusLower = newStatus.toLowerCase();
+          if (statusLower == 'delivered' || statusLower == 'cancelled' || statusLower == 'completed' || statusLower == 'canceled') {
+            // Remove from active orders
+            updatedOrders.removeAt(index);
+          } else {
+            // Update status
+            updatedOrders[index] = updatedOrders[index].copyWith(status: newStatus);
+          }
           state = AsyncValue.data(updatedOrders);
-          debugPrint('✅ Updated order $orderId status to $newStatus locally');
-          return;
+          debugPrint('✅ Updated active orders list locally for order $orderId');
         }
       }
-      debugPrint('🔄 Order not found or list not ready, invalidating self...');
-      ref.invalidateSelf();
     });
 
     ref.onDispose(() {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -120,6 +122,10 @@ class _RiderHomePageState extends ConsumerState<RiderHomePage> {
   String? _selectedCustomerPhone;
   String? _selectedAddress;
 
+  // Cancel flow: orderId → time when cancel-initiate was called
+  final Map<String, DateTime> _cancelInitiatedAt = {};
+  Timer? _countdownTicker;
+
   bool get _isOnline => ref.watch(riderStatusProvider);
   set _isOnline(bool value) =>
       ref.read(riderStatusProvider.notifier).toggle(value);
@@ -207,6 +213,7 @@ class _RiderHomePageState extends ConsumerState<RiderHomePage> {
 
   @override
   void dispose() {
+    _countdownTicker?.cancel();
     final socket = ref.read(socketServiceProvider);
     final authState = ref.read(authProvider);
     if (authState is AuthAuthenticated) {
@@ -958,6 +965,120 @@ class _RiderHomePageState extends ConsumerState<RiderHomePage> {
     );
   }
 
+
+  Future<void> _showCancelDialog(String orderId) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Order',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Please provide a reason for cancellation.',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Enter reason...',
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Back', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Initiate Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _initiateCancellation(orderId, reasonController.text.trim());
+    }
+    reasonController.dispose();
+  }
+
+  Future<void> _initiateCancellation(String orderId, String reason) async {
+    final riderService = ref.read(riderServiceProvider);
+    final result = await riderService.initiateCancellation(
+      orderId: orderId,
+      reason: reason,
+    );
+    if (!mounted) return;
+    if (result['success'] == false) {
+      _showSnack(result['message'] ?? 'Failed to initiate cancellation',
+          isError: true);
+      return;
+    }
+    DateTime initiatedAt = DateTime.now();
+    try {
+      final ts = result['data']?['cancelInitiatedAt'] ?? result['cancelInitiatedAt'];
+      if (ts != null) initiatedAt = DateTime.parse(ts.toString()).toLocal();
+    } catch (_) {}
+    setState(() => _cancelInitiatedAt[orderId] = initiatedAt);
+    _showSnack('Cancellation initiated — wait 5 minutes to confirm.');
+  }
+
+  Future<void> _confirmCancellation(String orderId) async {
+    final riderService = ref.read(riderServiceProvider);
+    final result = await riderService.confirmCancellation(orderId: orderId);
+    if (!mounted) return;
+    if (result['success'] == false) {
+      _showSnack(result['message'] ?? 'Failed to confirm cancellation',
+          isError: true);
+      return;
+    }
+    setState(() => _cancelInitiatedAt.remove(orderId));
+    ref.invalidate(riderOrdersProvider);
+    _showSnack('Order cancelled successfully.');
+  }
+
+  Widget _buildCancelSection(String orderId) {
+    final initiatedAt = _cancelInitiatedAt[orderId];
+    if (initiatedAt == null) {
+      return OutlinedButton.icon(
+        onPressed: () => _showCancelDialog(orderId),
+        icon: const Icon(Icons.cancel_outlined, size: 16),
+        label: const Text('Cancel Order',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.red.shade600,
+          side: BorderSide(color: Colors.red.shade300),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      );
+    }
+    // Countdown and confirm button live in their own widget so only it rebuilds
+    // every second — not the entire dashboard page.
+    return _CancelCountdownWidget(
+      initiatedAt: initiatedAt,
+      onConfirm: () => _confirmCancellation(orderId),
+    );
+  }
+
   Widget _buildOrderCard(dynamic order) {
     final rawAssignmentStatus = (order['riderAssignmentStatus'] ?? '').toString().toLowerCase();
     final orderStatus = (order['status']?.toString() ?? 'Pending').toLowerCase();
@@ -1224,111 +1345,140 @@ class _RiderHomePageState extends ConsumerState<RiderHomePage> {
             // Single Action Button Workflow
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: SizedBox(
-                width: double.infinity,
-                child: (() {
-                  if (isPending) {
-                    // STEP 1: ACCEPT ORDER
-                    return ElevatedButton.icon(
-                      onPressed: isProcessing
-                          ? null
-                          : () => _handleResponse(order['orderId'], 'Accepted'),
-                      icon: isProcessing
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white70,
-                              ),
-                            )
-                          : const Icon(Icons.check_circle_outline_rounded, size: 18),
-                      label: Text(
-                          isProcessing ? 'Processing...' : 'Accept Order',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isProcessing
-                            ? Colors.grey
-                            : const Color(0xFF06B6D4), // Cyan for Accept
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    );
-                  } else if (isAccepted && !isDelivered) {
-                    final s = orderStatus.toLowerCase();
-                    if (['out for delivery', 'out_for_delivery', 'arrived']
-                        .contains(s)) {
-                      // STEP 3: COMPLETE ORDER via OTP
-                      return ElevatedButton.icon(
-                        onPressed: isProcessing
-                            ? null
-                            : () => _startDeliveryOtp(order['orderId']),
-                        icon: isProcessing
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white70,
-                                ),
-                              )
-                            : const Icon(Icons.lock_open_rounded, size: 18),
-                        label: Text(
-                            isProcessing ? 'Sending OTP...' : 'Complete Order',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isProcessing
-                              ? Colors.grey
-                              : AppColors.accentGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  (() {
+                    if (isPending) {
+                      // STEP 1: ACCEPT or REJECT ORDER
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: isProcessing
+                                ? null
+                                : () => _handleResponse(order['orderId'], 'Accepted'),
+                            icon: isProcessing
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white70,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                            label: Text(
+                                isProcessing ? 'Processing...' : 'Accept Order',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isProcessing
+                                  ? Colors.grey
+                                  : const Color(0xFF06B6D4),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: isProcessing
+                                ? null
+                                : () => _handleResponse(order['orderId'], 'Rejected'),
+                            icon: const Icon(Icons.cancel_outlined, size: 18),
+                            label: const Text('Reject Order',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red.shade600,
+                              side: BorderSide(color: Colors.red.shade300),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ],
                       );
-                    } else {
-                      // STEP 2: OUT FOR DELIVERY
-                      return ElevatedButton.icon(
-                        onPressed: isProcessing
-                            ? null
-                            : () => _markOutForDelivery(order['orderId']),
-                        icon: isProcessing
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white70,
-                                ),
-                              )
-                            : const Icon(Icons.delivery_dining_rounded, size: 18),
-                        label: Text(
-                            isProcessing
-                                ? 'Processing...'
-                                : 'Mark Out for Delivery',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isProcessing
-                              ? Colors.grey
-                              : Colors.orange, // Orange for Out for Delivery
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      );
+                    } else if (isAccepted && !isDelivered) {
+                      final s = orderStatus.toLowerCase();
+                      if (['out for delivery', 'out_for_delivery', 'arrived']
+                          .contains(s)) {
+                        // STEP 3: COMPLETE ORDER via OTP
+                        return ElevatedButton.icon(
+                          onPressed: isProcessing
+                              ? null
+                              : () => _startDeliveryOtp(order['orderId']),
+                          icon: isProcessing
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white70,
+                                  ),
+                                )
+                              : const Icon(Icons.lock_open_rounded, size: 18),
+                          label: Text(
+                              isProcessing ? 'Sending OTP...' : 'Complete Order',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isProcessing
+                                ? Colors.grey
+                                : AppColors.accentGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        );
+                      } else {
+                        // STEP 2: OUT FOR DELIVERY
+                        return ElevatedButton.icon(
+                          onPressed: isProcessing
+                              ? null
+                              : () => _markOutForDelivery(order['orderId']),
+                          icon: isProcessing
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white70,
+                                  ),
+                                )
+                              : const Icon(Icons.delivery_dining_rounded, size: 18),
+                          label: Text(
+                              isProcessing
+                                  ? 'Processing...'
+                                  : 'Mark Out for Delivery',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isProcessing
+                                ? Colors.grey
+                                : Colors.orange,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        );
+                      }
                     }
-                  }
-                  return const SizedBox.shrink();
-                })(),
+                    return const SizedBox.shrink();
+                  })(),
+                  if (isAccepted && !isDelivered) ...[
+                    const SizedBox(height: 8),
+                    _buildCancelSection(order['orderId'].toString()),
+                  ],
+                ],
               ),
             ),
           ],
@@ -1410,6 +1560,104 @@ class _RiderHomePageState extends ConsumerState<RiderHomePage> {
         ],
       ),
     ).animate().fadeIn();
+  }
+}
+
+// ── Cancel countdown widget ──────────────────────────────────────────────────
+//
+// Owns its own 1-second Timer so only this tiny widget rebuilds each tick —
+// the entire RiderHomePage (order list, images, stats) is never re-rendered
+// just to update the countdown display. This eliminates the BLASTBufferQueue
+// pressure caused by the previous global setState() ticker.
+
+class _CancelCountdownWidget extends StatefulWidget {
+  final DateTime initiatedAt;
+  final VoidCallback onConfirm;
+
+  const _CancelCountdownWidget({
+    required this.initiatedAt,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_CancelCountdownWidget> createState() => _CancelCountdownWidgetState();
+}
+
+class _CancelCountdownWidgetState extends State<_CancelCountdownWidget> {
+  Timer? _timer;
+
+  Duration get _remaining {
+    final elapsed = DateTime.now().difference(widget.initiatedAt);
+    final r = const Duration(minutes: 5) - elapsed;
+    return r.isNegative ? Duration.zero : r;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_remaining > Duration.zero) _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_remaining <= Duration.zero) {
+        _timer?.cancel();
+      }
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = _remaining;
+
+    if (remaining > Duration.zero) {
+      final mins = remaining.inMinutes.toString().padLeft(2, '0');
+      final secs = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.timer_outlined, size: 16, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            Text(
+              'Confirm available in $mins:$secs',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade800),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: widget.onConfirm,
+      icon: const Icon(Icons.cancel_rounded, size: 18),
+      label: const Text('Confirm Cancellation',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red.shade600,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+    );
   }
 }
 

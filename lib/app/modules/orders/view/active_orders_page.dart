@@ -30,7 +30,7 @@ class _ActiveOrdersPageState extends ConsumerState<ActiveOrdersPage> {
     _onOrderUpdate = (data) {
       if (!mounted) return;
       debugPrint('📦 Order status updated via socket: $data');
-      ref.invalidate(activeOrdersProvider);
+      // Reactively handled by ActiveOrdersNotifier
     };
 
     _onDeliveryOtp = (data) {

@@ -64,9 +64,17 @@ void main() async {
   final container = ProviderContainer();
 
   // Restore saved language before first frame
-  await container.read(localeProvider.notifier).loadSavedLocale();
+  try {
+    await container.read(localeProvider.notifier).loadSavedLocale();
+  } catch (e) {
+    debugPrint("Warning: Could not load saved locale: $e");
+  }
 
-  await FCMService.init(container);
+  try {
+    await FCMService.init(container);
+  } catch (e) {
+    debugPrint("Warning: Could not initialize FCMService: $e");
+  }
 
   runApp(
     UncontrolledProviderScope(
@@ -81,40 +89,47 @@ class DifwaWaterApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cartProvider = ref.watch(cartProviderManager);
     final locale = ref.watch(localeProvider);
 
-    return CartProviderScope(
-      provider: cartProvider,
-      child: MaterialApp(
-        title: 'Difwa Water',
-        navigatorKey: FCMService.navigatorKey,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        locale: locale,
-        supportedLocales: kSupportedLocales,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        localeResolutionCallback: (deviceLocale, supportedLocales) {
-          // If explicitly set by user, use that (already in locale)
-          if (supportedLocales.any(
-              (s) => s.languageCode == locale.languageCode)) {
-            return locale;
-          }
-          // Fallback to English
-          return const Locale('en');
-        },
-        initialRoute: AppRoutes.splash,
-        routes: AppPages.routes,
-        scrollBehavior: const MaterialScrollBehavior().copyWith(
-          physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics()),
-        ),
+    return MaterialApp(
+      title: 'Difwa Water',
+      navigatorKey: FCMService.navigatorKey,
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      locale: locale,
+      supportedLocales: kSupportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      localeResolutionCallback: (deviceLocale, supportedLocales) {
+        // If explicitly set by user, use that (already in locale)
+        if (supportedLocales.any(
+            (s) => s.languageCode == locale.languageCode)) {
+          return locale;
+        }
+        // Fallback to English
+        return const Locale('en');
+      },
+      initialRoute: AppRoutes.splash,
+      routes: AppPages.routes,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
       ),
+      builder: (context, child) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final cartProvider = ref.watch(cartProviderManager);
+            return CartProviderScope(
+              provider: cartProvider,
+              child: child!,
+            );
+          },
+        );
+      },
     );
   }
 }

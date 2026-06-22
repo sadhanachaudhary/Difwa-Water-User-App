@@ -1,15 +1,23 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 
-/// Central configuration for API and Socket URLs.
-/// All services should use these getters as the single source of truth.
+// https://difwa-backend.onrender.com/api
+final LiveUrl = 'https://difwa-backend.up.railway.app/api';
+
+// final LocalUrl = Platform.isAndroid
+//     ? 'http://10.0.2.2:5001/api'
+//     : 'http://127.0.0.1:5001/api';
+
 class ApiConfig {
-  static String get baseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'https://difwa-backend.onrender.com/api';
-  // 'https://difwa-backend.onrender.com/api';
-//
-  // dotenv.env['API_BASE_URL'] ?? 'https://api.difwa.com/api';
-  static String get socketUrl =>
-      dotenv.env['SOCKET_URL'] ?? 'https://difwa-backend.onrender.com';
-  // dotenv.env['SOCKET_URL'] ?? 'https://api.difwa.com';
-  static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+  static String get baseUrl {
+    // if (kDebugMode) {
+    //   return LocalUrl;
+    // }
+    return LiveUrl;
+  }
+
+  static String get socketUrl {
+    // Socket.io should connect to the host root, not /api
+    return LiveUrl.replaceAll('/api', '');
+  }
 }

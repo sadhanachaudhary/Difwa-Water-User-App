@@ -18,6 +18,8 @@ class AddressService {
     required bool isDefault,
     double? latitude,
     double? longitude,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     return await _client.post(
       '${ApiClient.baseUrl}/address',
@@ -43,6 +45,8 @@ class AddressService {
             "lat": latitude,
             "lng": longitude,
           },
+        if (floorNumber != null) "floorNumber": floorNumber,
+        if (hasLift != null) "hasLift": hasLift,
       },
       requiresAuth: true,
     );
@@ -60,6 +64,8 @@ class AddressService {
     required bool isDefault,
     double? latitude,
     double? longitude,
+    int? floorNumber,
+    bool? hasLift,
   }) async {
     final payload = {
       "id": id,
@@ -86,6 +92,8 @@ class AddressService {
           "lat": latitude,
           "lng": longitude,
         },
+      if (floorNumber != null) "floorNumber": floorNumber,
+      if (hasLift != null) "hasLift": hasLift,
     };
 
     if (kDebugMode) {

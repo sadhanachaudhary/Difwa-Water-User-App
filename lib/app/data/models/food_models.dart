@@ -62,6 +62,9 @@ class UserOrder {
   final Map<String, dynamic>? deliveryAddressMap;
   final String? deliveryAddressStr;
   final bool isReviewed;
+  final double bottleDepositFee;
+  final bool hasEmptyBottles;
+  final int returnedBottlesCount;
 
   const UserOrder({
     required this.id,
@@ -80,6 +83,11 @@ class UserOrder {
     this.isReviewed = false,
     this.deliveryOtp,
     this.deliveryOtpExpiresAt,
+    this.cancelReason,
+    this.cancelledBy,
+    this.bottleDepositFee = 0.0,
+    this.hasEmptyBottles = false,
+    this.returnedBottlesCount = 0,
   });
 
   UserOrder copyWith({
@@ -99,6 +107,11 @@ class UserOrder {
     Map<String, dynamic>? retailer,
     String? deliveryOtp,
     DateTime? deliveryOtpExpiresAt,
+    String? cancelReason,
+    String? cancelledBy,
+    double? bottleDepositFee,
+    bool? hasEmptyBottles,
+    int? returnedBottlesCount,
   }) {
     return UserOrder(
       id: id ?? this.id,
@@ -117,6 +130,11 @@ class UserOrder {
       retailer: retailer ?? this.retailer,
       deliveryOtp: deliveryOtp ?? this.deliveryOtp,
       deliveryOtpExpiresAt: deliveryOtpExpiresAt ?? this.deliveryOtpExpiresAt,
+      cancelReason: cancelReason ?? this.cancelReason,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      bottleDepositFee: bottleDepositFee ?? this.bottleDepositFee,
+      hasEmptyBottles: hasEmptyBottles ?? this.hasEmptyBottles,
+      returnedBottlesCount: returnedBottlesCount ?? this.returnedBottlesCount,
     );
   }
 
@@ -125,6 +143,8 @@ class UserOrder {
   final Map<String, dynamic>? retailer;
   final String? deliveryOtp;
   final DateTime? deliveryOtpExpiresAt;
+  final String? cancelReason;
+  final String? cancelledBy;
 
   String get riderName => rider?['fullName'] ?? rider?['name'] ?? '';
   String get riderPhone => rider?['phoneNumber'] ?? rider?['phone'] ?? '';
@@ -214,6 +234,8 @@ class UserOrder {
       deliveryOtpExpiresAt: json['deliveryOtpExpiresAt'] != null
           ? DateTime.tryParse(json['deliveryOtpExpiresAt'].toString())?.toLocal()
           : null,
+      cancelReason: (json['cancelReason'] ?? json['cancellationReason'] ?? json['reason'])?.toString(),
+      cancelledBy: json['cancelledBy']?.toString(),
       isReviewed: json['isReviewed'] == true ||
           json['reviewed'] == true ||
           json['isReviewed'] == 1 ||
@@ -222,6 +244,9 @@ class UserOrder {
           json['is_reviewed'] == 1 ||
           json['isReviewed'].toString().toLowerCase() == 'true' ||
           json['is_reviewed'].toString().toLowerCase() == 'true',
+      bottleDepositFee: (json['bottleDepositFee'] as num?)?.toDouble() ?? 0.0,
+      hasEmptyBottles: json['hasEmptyBottles'] == true || json['hasEmptyBottles'] == 'true',
+      returnedBottlesCount: (json['returnedBottlesCount'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -275,6 +300,8 @@ class UserAddress {
   final bool isDefault;
   final double? latitude;
   final double? longitude;
+  final int? floorNumber;
+  final bool? hasLift;
 
   const UserAddress({
     required this.id,
@@ -286,6 +313,8 @@ class UserAddress {
     this.isDefault = false,
     this.latitude,
     this.longitude,
+    this.floorNumber,
+    this.hasLift,
   });
 
   UserAddress copyWith({
@@ -298,6 +327,8 @@ class UserAddress {
     bool? isDefault,
     double? latitude,
     double? longitude,
+    int? floorNumber,
+    bool? hasLift,
   }) {
     return UserAddress(
       id: id ?? this.id,
@@ -309,6 +340,8 @@ class UserAddress {
       isDefault: isDefault ?? this.isDefault,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      floorNumber: floorNumber ?? this.floorNumber,
+      hasLift: hasLift ?? this.hasLift,
     );
   }
 }

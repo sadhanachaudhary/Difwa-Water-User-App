@@ -94,26 +94,31 @@ class AuthStore extends Notifier<AuthState> {
     state = const AuthLoading();
     try {
       final String? token = await _storage.getAccessToken();
-      if (token != null && token.isNotEmpty) {
-        final response = await ref.read(authServiceProvider).getProfile();
-        if (response.success && response.data != null) {
-          state = AuthAuthenticated(response.data!);
-          _cacheUserProfile(response.data!);
-          unawaited(syncFcmToken());
-        } else {
-          if (response.message.contains('401') || response.message.contains('Unauthorized')) {
-            await logout();
-          } else {
-            final cached = await _getCachedUserProfile();
-            if (cached != null) {
-              state = AuthAuthenticated(cached);
-            } else {
-              state = AuthUnauthenticated(error: response.message);
-            }
-          }
-        }
-      } else {
+      if (token == null || token.isEmpty) {
         state = const AuthUnauthenticated();
+        return;
+      }
+
+      // Use cached profile immediately so navigation doesn't wait for network.
+      final cached = await _getCachedUserProfile();
+      if (cached != null) {
+        state = AuthAuthenticated(cached);
+        // Silently verify + refresh in background — won't block splash navigation.
+        unawaited(_refreshProfileInBackground());
+        return;
+      }
+
+      // No cache (first launch after login) — must wait for network once.
+      final response = await ref.read(authServiceProvider).getProfile();
+      if (response.success && response.data != null) {
+        state = AuthAuthenticated(response.data!);
+        _cacheUserProfile(response.data!);
+        unawaited(syncFcmToken());
+      } else if (response.message.contains('401') ||
+          response.message.contains('Unauthorized')) {
+        await logout();
+      } else {
+        state = AuthUnauthenticated(error: response.message);
       }
     } catch (e) {
       final cached = await _getCachedUserProfile();
@@ -122,6 +127,23 @@ class AuthStore extends Notifier<AuthState> {
       } else {
         state = AuthUnauthenticated(error: e.toString());
       }
+    }
+  }
+
+  Future<void> _refreshProfileInBackground() async {
+    try {
+      final response = await ref.read(authServiceProvider).getProfile();
+      if (response.success && response.data != null) {
+        state = AuthAuthenticated(response.data!);
+        _cacheUserProfile(response.data!);
+        unawaited(syncFcmToken());
+      } else if (response.message.contains('401') ||
+          response.message.contains('Unauthorized')) {
+        await logout();
+      }
+      // Any other error: keep cached state, don't disrupt the user.
+    } catch (_) {
+      // Network unavailable — user stays on cached profile, no disruption.
     }
   }
 

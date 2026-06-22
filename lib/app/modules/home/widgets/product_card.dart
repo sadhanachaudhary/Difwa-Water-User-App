@@ -491,14 +491,11 @@ class _ProductHeartState extends ConsumerState<_ProductHeart>
   Widget build(BuildContext context) {
     final favsValue = ref.watch(favoritesProvider);
 
-    // Sync local state once loaded
+    // Sync local state once loaded — assign directly so the current build frame
+    // already has the correct value; no setState/addPostFrameCallback needed
+    // because ref.watch above already drives the rebuild.
     favsValue.whenData((ids) {
-      final fromProvider = ids.contains(widget.productId);
-      if (_localFav == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _localFav = fromProvider);
-        });
-      }
+      _localFav ??= ids.contains(widget.productId);
     });
 
     final bool isFav = _localFav ??

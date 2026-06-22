@@ -29,7 +29,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<dynamic> _predictions = [];
   Timer? _debounce;
-  final String _apiKey = dotenv.get('GOOGLE_MAPS_API_KEY');
+  final String _apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   @override
   void dispose() {
@@ -168,8 +168,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   void _showRefinementSheet() {
     final houseCtrl = TextEditingController(text: "${_currentPlacemark?.name ?? ''}, ${_currentPlacemark?.subLocality ?? ''}");
+    final floorCtrl = TextEditingController(text: widget.initialAddress?.floorNumber?.toString() ?? '0');
     String selectedTag = 'Home';
     bool isSavingLocal = false;
+    bool hasLift = widget.initialAddress?.hasLift ?? true;
 
     showModalBottomSheet(
       context: context,
@@ -222,6 +224,72 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                       borderSide: BorderSide.none,
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'FLOOR NUMBER',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                letterSpacing: 1.1),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: floorCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'e.g. 3',
+                              filled: true,
+                              fillColor: const Color(0xFFF7F8FA),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'LIFT AVAILABLE?',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                letterSpacing: 1.1),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Switch(
+                                value: hasLift,
+                                onChanged: (v) {
+                                  setSheetState(() => hasLift = v);
+                                },
+                                activeColor: const Color(0xFF06B6D4),
+                              ),
+                              Text(
+                                hasLift ? 'Yes' : 'No',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -304,6 +372,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                           isDefault: isUpdate ? widget.initialAddress!.isDefault : provider.addresses.isEmpty,
                           latitude: _lastPickedLocation.latitude,
                           longitude: _lastPickedLocation.longitude,
+                          floorNumber: int.tryParse(floorCtrl.text) ?? 0,
+                          hasLift: hasLift,
                         );
   
                         final result = await LoaderUtils.timedAction(context, () async {

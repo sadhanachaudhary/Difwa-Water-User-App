@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -126,7 +127,7 @@ class FCMService {
 
     listenToTokenRefresh();
     // Initial token send (if user is already logged in)
-    await sendTokenToBackend();
+    unawaited(sendTokenToBackend());
 
     debugPrint('✅ FCMService initialized (Real Firebase)');
   }

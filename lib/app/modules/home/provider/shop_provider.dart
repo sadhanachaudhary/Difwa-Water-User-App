@@ -13,10 +13,14 @@ class ShopsNotifier extends AsyncNotifier<List<ShopModel>> {
   @override
   Future<List<ShopModel>> build() async {
     final service = ref.watch(shopServiceProvider);
-    final shops = await LoaderUtils.wrapWithSkeleton(() => service.getShops());
+    final shops = await LoaderUtils.wrapWithSkeleton(
+      () => service.getShops().timeout(const Duration(seconds: 20)),
+    );
 
-    // Listen for real-time shop status updates
-    final socket = ref.watch(socketServiceProvider);
+    // Listen for real-time shop status updates — deregister first to prevent
+    // listener stacking if build() is called more than once.
+    final socket = ref.read(socketServiceProvider);
+    socket.offShopStatusUpdate();
     socket.onShopStatusUpdate((data) {
       _handleShopStatusUpdate(data);
     });
@@ -50,13 +54,15 @@ class ShopsNotifier extends AsyncNotifier<List<ShopModel>> {
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
-        () => LoaderUtils.wrapWithSkeleton(() => ref.read(shopServiceProvider).getShops()));
+        () => LoaderUtils.wrapWithSkeleton(
+          () => ref.read(shopServiceProvider).getShops().timeout(const Duration(seconds: 20)),
+        ));
   }
 }
 
 final shopProductsProvider =
     FutureProvider.family<List<ShopProduct>, String>((ref, shopId) async {
-  final service = ref.watch(shopServiceProvider);
+  final service = ref.read(shopServiceProvider);
   return LoaderUtils.wrapWithSkeleton(() => service.getShopProducts(shopId));
 });
 

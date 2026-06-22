@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 import '../models/shop_product_model.dart';
+import '../../../core/state/auth_store.dart';
 
 /// Service for toggling and fetching user favorites from the backend.
 class FavoritesService {
@@ -82,6 +83,8 @@ final favoritesServiceProvider = Provider<FavoritesService>((ref) {
 class FavoritesNotifier extends AsyncNotifier<Set<String>> {
   @override
   Future<Set<String>> build() async {
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
+    if (!isAuthenticated) return {};
     final ids = await ref.read(favoritesServiceProvider).getFavoriteIds();
     debugPrint('[FavoritesNotifier] initial favorite IDs: $ids');
     return ids;
@@ -136,5 +139,7 @@ final favoritesProvider =
 /// Non-autoDispose → keeps data alive across page navigations.
 /// Invalidated explicitly by [FavoritesNotifier.toggle] after every API call.
 final favoriteProductsProvider = FutureProvider<List<ShopProduct>>((ref) {
+  final isAuthenticated = ref.watch(isAuthenticatedProvider);
+  if (!isAuthenticated) return [];
   return ref.read(favoritesServiceProvider).getFavoriteProducts();
 });

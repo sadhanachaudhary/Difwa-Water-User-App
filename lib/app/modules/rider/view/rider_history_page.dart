@@ -8,10 +8,9 @@ import 'package:intl/intl.dart';
 final deliveryHistoryProvider =
     FutureProvider<List<dynamic>>((ref) async {
   final all = await ref.read(riderServiceProvider).getDeliveryHistory();
-  // Ensure only delivered/completed orders are shown in history
   return all.where((o) {
     final s = (o['status']?.toString() ?? '').toLowerCase();
-    return s == 'delivered' || s == 'completed';
+    return s == 'delivered' || s == 'completed' || s == 'cancelled';
   }).toList();
 });
 
@@ -227,33 +226,7 @@ class _DeliveryHistoryCard extends StatelessWidget {
                       fontSize: 18,
                       color: Color(0xFF1B2D1F)),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: (item['status']?.toString().toLowerCase() ==
-                                'delivered' ||
-                            item['status']?.toString().toLowerCase() ==
-                                'completed')
-                        ? const Color(0xFFCFFAFE)
-                        : Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    (item['status']?.toString() ?? 'PENDING').toUpperCase(),
-                    style: TextStyle(
-                      color: (item['status']?.toString().toLowerCase() ==
-                                  'delivered' ||
-                              item['status']?.toString().toLowerCase() ==
-                                  'completed')
-                          ? AppColors.accentGreen
-                          : Colors.orange,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
+                _StatusBadge(status: item['status']?.toString() ?? ''),
               ],
             ),
             const SizedBox(height: 12),
@@ -346,9 +319,78 @@ class _DeliveryHistoryCard extends StatelessWidget {
               isBoldValue: true,
             ),
 
+            // ── Cancellation reason (rider-cancelled orders) ─────────────────
+            if ((item['status']?.toString().toLowerCase() ?? '') == 'cancelled') ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(children: [
+                      Icon(Icons.cancel_rounded, size: 14, color: Color(0xFFB91C1C)),
+                      SizedBox(width: 6),
+                      Text('Order Cancelled',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFB91C1C))),
+                    ]),
+                    if ((item['cancelReason'] ?? item['cancellationReason'] ?? item['reason'])
+                            ?.toString()
+                            .isNotEmpty ==
+                        true) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Reason: ${(item['cancelReason'] ?? item['cancellationReason'] ?? item['reason']).toString()}',
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF7F1D1D)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = status.toLowerCase();
+    Color color;
+    Color bg;
+    if (s == 'delivered' || s == 'completed') {
+      color = AppColors.accentGreen;
+      bg = const Color(0xFFCFFAFE);
+    } else if (s == 'cancelled') {
+      color = const Color(0xFFB91C1C);
+      bg = const Color(0xFFFEE2E2);
+    } else {
+      color = Colors.orange;
+      bg = Colors.orange.withValues(alpha: 0.1);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.0),
       ),
     );
   }

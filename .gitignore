@@ -50,16 +50,6 @@ android/local.properties
 # Environment Variables
 .env
 
-# Firebase Config Files
-android/app/google-services.json
-ios/Runner/GoogleService-Info.plist
-macos/Runner/GoogleService-Info.plist
-
-# Keystore and Signing Files
-*.jks
-*.keystore
-key.properties
-android/key.properties
 
 # Environment Variables (Additional)
 .env*

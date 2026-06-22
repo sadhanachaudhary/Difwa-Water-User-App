@@ -15,7 +15,8 @@ class CartSummaryBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (cart.itemCount == 0) return const SizedBox.shrink();
+    final count = cart.itemCount;
+    if (count == 0) return const SizedBox.shrink();
 
     return GestureDetector(
       onTap: onTap ?? () {
@@ -28,7 +29,7 @@ class CartSummaryBar extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.primary, // Using primary blue
+          color: AppColors.primary,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -58,7 +59,7 @@ class CartSummaryBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${cart.itemCount} ITEM${cart.itemCount > 1 ? 'S' : ''}',
+                  '$count ITEM${count > 1 ? 'S' : ''}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 10,

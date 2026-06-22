@@ -12,6 +12,7 @@ final shopServiceProvider = Provider<ShopService>((ref) {
 
 /// Reactive Provider for a specific shop's details
 final shopDetailsProvider = FutureProvider.family<ShopModel?, String>((ref, id) {
+  if (id.isEmpty) return Future.value(null);
   return ref.watch(shopServiceProvider).getShopDetails(id);
 });
 

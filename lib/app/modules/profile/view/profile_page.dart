@@ -429,7 +429,9 @@ class _ActiveOrdersAndSubscriptions extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                        activeOrdersCount > 0 ? '$activeOrdersCount Live' : 'Track',
+                        activeOrdersCount > 0
+                            ? '$activeOrdersCount Live'
+                            : 'Track',
                         style: const TextStyle(
                             color: Color(0xFF06B6D4),
                             fontSize: 10,
@@ -499,9 +501,13 @@ class _ActiveOrdersAndSubscriptions extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                        activeSubsCount > 0 ? '$activeSubsCount Managed' : 'View Plans',
-                        style:
-                            const TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.w600)),
+                        activeSubsCount > 0
+                            ? '$activeSubsCount Managed'
+                            : 'View Plans',
+                        style: const TextStyle(
+                            color: Color(0xFF06B6D4),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),

@@ -5,6 +5,7 @@ import '../../../data/services/payment_service.dart';
 import '../../../data/services/wallet_service.dart';
 import '../../../data/services/db_service.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../home/controller/main_controller.dart';
 
 class TopUpPage extends ConsumerStatefulWidget {
   const TopUpPage({super.key});
@@ -18,9 +19,11 @@ class _TopUpPageState extends ConsumerState<TopUpPage> {
   bool _isLoading = false;
   // Cache service so we can call dispose() without using ref after unmount
   late PaymentService _paymentService;
-  // Cache messenger — Razorpay callbacks fire from native threads AFTER widget
-  // may have unmounted. Never call ScaffoldMessenger.of(context) inside them.
+  // Cache context-dependent refs — Razorpay callbacks fire after CheckoutActivity
+  // closes and Flutter's InheritedWidget tree is mid-resume, so .of(context)
+  // calls inside callbacks throw "No ancestor found / wrap in X" errors.
   ScaffoldMessengerState? _messenger;
+  CartProvider? _cartScope;
 
   bool _amountInitialized = false;
 
@@ -28,6 +31,7 @@ class _TopUpPageState extends ConsumerState<TopUpPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _messenger = ScaffoldMessenger.of(context);
+    _cartScope = CartProviderScope.of(context);
     if (!_amountInitialized) {
       _amountInitialized = true;
       final args = ModalRoute.of(context)?.settings.arguments
@@ -52,15 +56,12 @@ class _TopUpPageState extends ConsumerState<TopUpPage> {
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     debugPrint('TopUpPage: Payment SUCCESS: ID=${response.paymentId}, OrderID=${response.orderId}');
+    if (!mounted) return;
     setState(() => _isLoading = true);
     final amount = double.tryParse(_amountController.text) ?? 0.0;
-    
-    debugPrint('TopUpPage: Verifying payment with backend (amount: $amount)...');
-    
-    // Capture the cart scope before the async gap to avoid deactivated context lookup
-    final cartScope = CartProviderScope.of(context);
+
     final walletRef = ref.read(walletServiceProvider);
-    
+
     final result = await walletRef.topUpSuccess(
           amount: amount,
           razorpayOrderId: response.orderId!,
@@ -73,7 +74,7 @@ class _TopUpPageState extends ConsumerState<TopUpPage> {
     if (mounted) {
       setState(() => _isLoading = false);
       if (result['success'] == true) {
-        cartScope.syncWallet();
+        _cartScope?.syncWallet();
         ref.invalidate(walletBalanceProvider);
         ref.invalidate(walletHistoryProvider);
         
@@ -86,6 +87,9 @@ class _TopUpPageState extends ConsumerState<TopUpPage> {
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           ),
         );
+        
+        // Ensure index is set to 3 (Wallet tab on MainPage)
+        ref.read(mainIndexProvider.notifier).setIndex(3);
         
         if (Navigator.canPop(context)) {
           Navigator.pop(context);

@@ -235,6 +235,39 @@ class RiderService {
 
 
 
+  /// Step 1: Initiate cancellation — starts the 5-minute countdown on the backend.
+  Future<Map<String, dynamic>> initiateCancellation({
+    required String orderId,
+    required String reason,
+  }) async {
+    try {
+      final res = await _apiClient.post(
+        '${ApiClient.riderBaseUrl}/orders/$orderId/cancel-initiate',
+        data: {'reason': reason},
+        requiresAuth: true,
+      );
+      return res is Map<String, dynamic> ? res : {'success': false, 'message': 'Unexpected response'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Step 2: Confirm cancellation — callable only after the 5-minute wait.
+  Future<Map<String, dynamic>> confirmCancellation({
+    required String orderId,
+  }) async {
+    try {
+      final res = await _apiClient.post(
+        '${ApiClient.riderBaseUrl}/orders/$orderId/cancel-confirm',
+        data: <String, dynamic>{},
+        requiresAuth: true,
+      );
+      return res is Map<String, dynamic> ? res : {'success': false, 'message': 'Unexpected response'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   Future<List<dynamic>> getDeliveryHistory() async {
     try {
       final response = await _apiClient.get(
