@@ -23,11 +23,13 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
   final _cityCtrl = TextEditingController();
   final _stateCtrl = TextEditingController();
   final _pincodeCtrl = TextEditingController();
+  final _floorCtrl = TextEditingController();
 
   String _selectedLabel = 'Home';
   UserAddress? _editingAddress;
   double? _latitude;
   double? _longitude;
+  bool _hasLift = false;
 
   final List<Map<String, dynamic>> _labels = [
     {'name': 'Home', 'icon': Icons.home_rounded},
@@ -55,12 +57,13 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
     _cityCtrl.dispose();
     _stateCtrl.dispose();
     _pincodeCtrl.dispose();
+    _floorCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _saveAddress() async {
     final cart = CartProviderScope.of(context);
-    
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -71,11 +74,13 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
         title: _selectedLabel,
         street: _fullAddressCtrl.text.trim(),
         details: '${_cityCtrl.text.trim()}, ${_stateCtrl.text.trim()} ${_pincodeCtrl.text.trim()}',
-        fullName: cart.userProfile.name, // Use profile directly
-        email: cart.userProfile.email,   // Use profile directly
+        fullName: cart.userProfile.name,
+        email: cart.userProfile.email,
         isDefault: _isDefault,
         latitude: _latitude,
         longitude: _longitude,
+        floorNumber: int.tryParse(_floorCtrl.text.trim()),
+        hasLift: _hasLift,
       );
 
       if (_editingAddress == null) {
@@ -111,6 +116,233 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _showBuildingDetailsSheet(UserAddress addr) async {
+    final cart = CartProviderScope.of(context);
+    final floorCtrl = TextEditingController(
+        text: addr.floorNumber != null ? addr.floorNumber.toString() : '');
+    bool hasLiftVal = addr.hasLift ?? false;
+    bool isSaving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentGreen.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.apartment_rounded,
+                            color: AppColors.accentGreen, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Building Details',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(
+                              'Saved to profile — auto-fills at checkout',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Floor number field
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Floor Number',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2D1F))),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: floorCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        enabled: !isSaving,
+                        cursorColor: AppColors.accentGreen,
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 0 = Ground, 1, 2, 3...',
+                          hintStyle: TextStyle(
+                              color: Colors.grey.shade400, fontSize: 14),
+                          prefixIcon: Icon(Icons.stairs_rounded,
+                              color: Colors.grey.shade400, size: 22),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 16),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade200)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade200)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(
+                                color: AppColors.accentGreen, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Lift toggle
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.elevator_rounded,
+                            color: Colors.grey.shade400, size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Lift Available',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15)),
+                              Text('Helps delivery agent plan the route',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        // Yes / No segmented buttons
+                        Row(
+                          children: [
+                            _LiftToggleBtn(
+                              label: 'No',
+                              selected: !hasLiftVal,
+                              isLeft: true,
+                              onTap: isSaving
+                                  ? null
+                                  : () => setSheet(() => hasLiftVal = false),
+                            ),
+                            _LiftToggleBtn(
+                              label: 'Yes',
+                              selected: hasLiftVal,
+                              isLeft: false,
+                              onTap: isSaving
+                                  ? null
+                                  : () => setSheet(() => hasLiftVal = true),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setSheet(() => isSaving = true);
+                              final updatedAddr = addr.copyWith(
+                                floorNumber:
+                                    int.tryParse(floorCtrl.text.trim()),
+                                hasLift: hasLiftVal,
+                              );
+                              final res =
+                                  await cart.updateAddress(updatedAddr);
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              if (res['success'] == true) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text(
+                                          'Building details saved!'),
+                                      backgroundColor: AppColors.accentGreen,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text('Save Building Details',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    );
+    floorCtrl.dispose();
   }
 
   @override
@@ -395,11 +627,33 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
                       fontSize: 12,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Floor / Lift chips — always shown so user knows status
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      _buildDetailChip(
+                        icon: Icons.stairs_rounded,
+                        label: addr.floorNumber != null
+                            ? 'Floor ${addr.floorNumber}'
+                            : 'Floor ?',
+                        filled: addr.floorNumber != null,
+                        isSelected: isSelected,
+                      ),
+                      _buildDetailChip(
+                        icon: Icons.elevator_rounded,
+                        label: addr.hasLift == true ? 'Lift: Yes' : 'Lift: No',
+                        filled: addr.hasLift != null,
+                        isSelected: isSelected,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
                   width: 24,
@@ -425,7 +679,8 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
                         )
                       : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                // Edit map location
                 InkWell(
                   onTap: () async {
                     final result = await Navigator.pushNamed(
@@ -444,8 +699,22 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.edit_location_alt_rounded,
-                        color: AppColors.accentGreen.withOpacity(0.8),
+                        color: AppColors.accentGreen.withValues(alpha: 0.8),
                         size: 20),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Edit building details (floor / lift)
+                InkWell(
+                  onTap: () => _showBuildingDetailsSheet(addr),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGreen.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.apartment_rounded,
+                        color: AppColors.accentGreen, size: 20),
                   ),
                 ),
               ],
@@ -453,6 +722,48 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
           ],
         ),
       ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.05, end: 0),
+    );
+  }
+
+  Widget _buildDetailChip({
+    required IconData icon,
+    required String label,
+    required bool filled,
+    required bool isSelected,
+  }) {
+    final color = isSelected ? AppColors.accentGreen : Colors.grey.shade500;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: filled
+            ? (isSelected
+                ? AppColors.accentGreen.withValues(alpha: 0.1)
+                : Colors.grey.shade100)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: filled
+              ? (isSelected
+                  ? AppColors.accentGreen.withValues(alpha: 0.35)
+                  : Colors.grey.shade300)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: filled ? color : Colors.grey.shade400),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: filled ? color : Colors.grey.shade400,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -666,7 +977,74 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
               icon: Icons.holiday_village_rounded,
               validator: (v) => v!.isEmpty ? 'Please enter state' : null,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            const Text(
+              'Building Details',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937)),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Saved to profile — auto-fills at every checkout',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 12),
+            _buildInputField(
+              controller: _floorCtrl,
+              label: 'Floor Number',
+              hint: 'e.g. 0 = Ground, 1, 2, 3...',
+              icon: Icons.stairs_rounded,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.elevator_rounded,
+                      color: Colors.grey.shade400, size: 22),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Lift Available',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15)),
+                        Text('Helps delivery agent plan the route',
+                            style:
+                                TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      _LiftToggleBtn(
+                        label: 'No',
+                        selected: !_hasLift,
+                        isLeft: true,
+                        onTap: () => setState(() => _hasLift = false),
+                      ),
+                      _LiftToggleBtn(
+                        label: 'Yes',
+                        selected: _hasLift,
+                        isLeft: false,
+                        onTap: () => setState(() => _hasLift = true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -686,7 +1064,7 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
                   Switch.adaptive(
                     value: _isDefault,
                     activeTrackColor:
-                        AppColors.accentGreen.withOpacity(0.5),
+                        AppColors.accentGreen.withValues(alpha: 0.5),
                     activeThumbColor: AppColors.accentGreen,
                     onChanged: (val) => setState(() => _isDefault = val),
                   ),
@@ -955,6 +1333,48 @@ class _CheckoutStepper extends StatelessWidget {
       width: 40,
       height: 2,
       color: isActive ? AppColors.accentGreen : Colors.grey.shade200,
+    );
+  }
+}
+
+class _LiftToggleBtn extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool isLeft;
+  final VoidCallback? onTap;
+
+  const _LiftToggleBtn({
+    required this.label,
+    required this.selected,
+    required this.isLeft,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accentGreen : Colors.grey.shade100,
+          borderRadius: BorderRadius.horizontal(
+            left: isLeft ? const Radius.circular(10) : Radius.zero,
+            right: isLeft ? Radius.zero : const Radius.circular(10),
+          ),
+          border: Border.all(
+            color: selected ? AppColors.accentGreen : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: selected ? Colors.white : Colors.grey.shade600,
+          ),
+        ),
+      ),
     );
   }
 }
