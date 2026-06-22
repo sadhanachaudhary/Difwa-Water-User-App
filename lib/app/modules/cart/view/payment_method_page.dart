@@ -11,6 +11,7 @@ import 'order_success_page.dart';
 
 import '../../../data/services/shop_service.dart';
 import '../../../data/models/shop_product_model.dart';
+import '../../../data/models/food_models.dart';
 
 class PaymentMethodPage extends ConsumerStatefulWidget {
   const PaymentMethodPage({super.key});
@@ -291,6 +292,10 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (cartProvider.selectedAddress != null) ...[
+                    _buildAddressCard(context, cartProvider),
+                    const SizedBox(height: 20),
+                  ],
 
                   GestureDetector(
                     onTap: () async {
@@ -1365,6 +1370,288 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAddressCard(BuildContext context, CartProvider cartProvider) {
+    final addr = cartProvider.selectedAddress!;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF00ACC1).withOpacity(0.2),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.location_on_rounded, color: AppColors.primary, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                addr.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              if (addr.isDefault) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F4F8),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'DEFAULT',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.swap_horiz_rounded, size: 16, color: AppColors.primary),
+                label: const Text(
+                  'Change',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            addr.street,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13, height: 1.4),
+          ),
+          Text(
+            addr.details,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Floor: ${addr.floorNumber ?? 0}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Lift: ${addr.hasLift == true ? "Available" : "Not Available"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+              if (cartProvider.floorChargeFee > 0)
+                Text(
+                  'Floor Charge: ₹${cartProvider.floorChargeFee.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.orange,
+                  ),
+                )
+              else
+                const Text(
+                  'No Floor Charge',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    color: Colors.green,
+                  ),
+                ),
+              ElevatedButton.icon(
+                onPressed: () => _showEditFloorDialog(context, addr, cartProvider),
+                icon: const Icon(Icons.edit_rounded, size: 14),
+                label: const Text('Edit Floor', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditFloorDialog(BuildContext context, UserAddress addr, CartProvider cartProvider) {
+    final floorCtrl = TextEditingController(text: addr.floorNumber?.toString() ?? '0');
+    bool hasLiftVal = addr.hasLift ?? false;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text(
+                'Edit Floor Details',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: floorCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    enabled: !isSaving,
+                    onTap: () {
+                      if (floorCtrl.text == '0') {
+                        floorCtrl.clear();
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Floor Number',
+                      hintText: 'e.g. 0 for Ground, 1, 2, 3...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Building has lift?',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                      ),
+                      Switch.adaptive(
+                        value: hasLiftVal,
+                        activeTrackColor: AppColors.primary.withOpacity(0.5),
+                        activeThumbColor: AppColors.primary,
+                        onChanged: isSaving
+                            ? null
+                            : (val) {
+                                setDialogState(() {
+                                  hasLiftVal = val;
+                                });
+                              },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final int floor = int.tryParse(floorCtrl.text) ?? 0;
+                          final updatedAddr = addr.copyWith(
+                            floorNumber: floor,
+                            hasLift: hasLiftVal,
+                          );
+
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+
+                          try {
+                            final res = await cartProvider.updateAddress(updatedAddr);
+                            if (context.mounted) {
+                              Navigator.pop(dialogContext); // Close dialog
+                              if (res['success'] != true) {
+                                _showError(res['message'] ?? 'Failed to update address floor details.');
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Floor details updated successfully!'),
+                                    backgroundColor: AppColors.primary,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              setDialogState(() {
+                                isSaving = false;
+                              });
+                              _showError('Error updating address: $e');
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
