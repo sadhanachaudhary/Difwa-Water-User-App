@@ -236,7 +236,10 @@ class CartProvider extends ChangeNotifier {
     final cartHash =
         _items.map((e) => '${e.id}:${e.quantity}').join('|');
 
-    if (_lastCalculatedAddressId == addr.id &&
+    // Include floorNumber and hasLift in address key to detect floor changes on same address
+    final addressKey = '${addr.id}:${addr.floorNumber ?? 0}:${addr.hasLift ?? true}';
+
+    if (_lastCalculatedAddressId == addressKey &&
         _lastCalculatedCartHash == cartHash) {
       return; // Already calculated for this state
     }
@@ -306,7 +309,8 @@ class CartProvider extends ChangeNotifier {
         _floorChargeFee = (result['floorChargeFee'] as num? ?? 0.0).toDouble();
         _isDeliverable = result['deliverable'] ?? true;
         _deliveryMessage = result['message'] ?? '';
-        _lastCalculatedAddressId = addr.id;
+        final addressKey = '${addr.id}:${addr.floorNumber ?? 0}:${addr.hasLift ?? true}';
+        _lastCalculatedAddressId = addressKey;
         _lastCalculatedCartHash = cartHash;
       }
     } catch (e) {
@@ -495,7 +499,7 @@ class CartProvider extends ChangeNotifier {
         if (lat == null || lng == null || (lat == 0 && lng == 0)) {
           try {
             final fullAddr = '${address.street}, ${address.details}';
-            final locations = await locationFromAddress(fullAddr);
+            final locations = await locationFromAddress(fullAddr).timeout(const Duration(seconds: 3));
             if (locations.isNotEmpty) {
               lat = locations.first.latitude;
               lng = locations.first.longitude;
@@ -524,7 +528,26 @@ class CartProvider extends ChangeNotifier {
           await loadAddresses();
           // Auto-select the newly added address
           if (_addresses.isNotEmpty) {
-            final newIdx = _addresses.indexWhere((a) => a.title == address.title && a.street == address.street);
+            String? newId;
+            if (result is Map) {
+              final rawId = result['_id'] ?? result['id'];
+              if (rawId != null) {
+                newId = rawId.toString();
+              } else if (result['data'] is Map) {
+                final dataId = result['data']['_id'] ?? result['data']['id'];
+                if (dataId != null) newId = dataId.toString();
+              } else if (result['address'] is Map) {
+                final addrId = result['address']['_id'] ?? result['address']['id'];
+                if (addrId != null) newId = addrId.toString();
+              }
+            }
+            int newIdx = -1;
+            if (newId != null && newId.isNotEmpty) {
+              newIdx = _addresses.indexWhere((a) => a.id == newId);
+            }
+            if (newIdx == -1) {
+              newIdx = _addresses.indexWhere((a) => a.title == address.title && a.street == address.street);
+            }
             if (newIdx != -1) {
               _selectedAddressIndex = newIdx;
               notifyListeners();
@@ -607,7 +630,7 @@ class CartProvider extends ChangeNotifier {
             latitude: lat,
             longitude: lng,
             floorNumber: json['floorNumber'] != null ? int.tryParse(json['floorNumber'].toString()) : null,
-            hasLift: json['hasLift'] == true,
+            hasLift: json['hasLift'] == null ? true : (json['hasLift'] == true || json['hasLift'] == 1 || json['hasLift'].toString() == 'true'),
           );
         }).toList();
 
@@ -665,7 +688,7 @@ class CartProvider extends ChangeNotifier {
         if (lat == null || lng == null || (lat == 0 && lng == 0)) {
           try {
             final fullAddr = '${address.street}, ${address.details}';
-            final locations = await locationFromAddress(fullAddr);
+            final locations = await locationFromAddress(fullAddr).timeout(const Duration(seconds: 3));
             if (locations.isNotEmpty) {
               lat = locations.first.latitude;
               lng = locations.first.longitude;
