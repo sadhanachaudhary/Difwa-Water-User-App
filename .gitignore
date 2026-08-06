@@ -68,10 +68,14 @@ otp*
 *.jks
 *.keystore
 
-# API Keys and Secrets
+# API Keys, Secrets and Configs
 api_keys.dart
 secrets.dart
 credentials.json
+key.properties
+google-services.json
+GoogleService-Info.plist
+ServiceAccountKey.json
 
 # Fastlane secrets
 **/fastlane/Appfile

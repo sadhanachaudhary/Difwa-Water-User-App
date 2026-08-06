@@ -550,6 +550,18 @@ class CartProvider extends ChangeNotifier {
             }
             if (newIdx != -1) {
               _selectedAddressIndex = newIdx;
+              // Re-apply floor/lift if server returned null for the new address
+              final serverAddr = _addresses[newIdx];
+              final needsPatch = (serverAddr.floorNumber == null && address.floorNumber != null) ||
+                  (serverAddr.hasLift == null && address.hasLift != null) ||
+                  (serverAddr.floorNumber != address.floorNumber && address.floorNumber != null) ||
+                  (serverAddr.hasLift != address.hasLift && address.hasLift != null);
+              if (needsPatch) {
+                _addresses[newIdx] = serverAddr.copyWith(
+                  floorNumber: address.floorNumber,
+                  hasLift: address.hasLift,
+                );
+              }
               notifyListeners();
             }
           }
@@ -629,8 +641,15 @@ class CartProvider extends ChangeNotifier {
             isDefault: json['isDefault'] ?? false,
             latitude: lat,
             longitude: lng,
-            floorNumber: json['floorNumber'] != null ? int.tryParse(json['floorNumber'].toString()) : null,
-            hasLift: json['hasLift'] == null ? true : (json['hasLift'] == true || json['hasLift'] == 1 || json['hasLift'].toString() == 'true'),
+            floorNumber: json['floorNumber'] != null
+                ? int.tryParse(json['floorNumber'].toString())
+                : null,
+            // Default hasLift to false (not true) when server returns null
+            hasLift: json['hasLift'] == null
+                ? false
+                : (json['hasLift'] == true ||
+                    json['hasLift'] == 1 ||
+                    json['hasLift'].toString() == 'true'),
           );
         }).toList();
 
@@ -713,9 +732,55 @@ class CartProvider extends ChangeNotifier {
           floorNumber: address.floorNumber,
           hasLift: address.hasLift,
         );
-        final bool isSuccess = result['success'] == true || result['data'] != null || result['_id'] != null;
+        final bool isSuccess = result['success'] == true ||
+            result['data'] != null ||
+            result['_id'] != null;
         if (isSuccess) {
+          // ── Optimistic in-memory patch ─────────────────────────────────
+          // Apply the user's new floor/lift values immediately so the UI
+          // reflects them right away, before (and even if) the server
+          // doesn't persist them yet.
+          final localIdx = _addresses.indexWhere((a) => a.id == address.id);
+          if (localIdx != -1) {
+            _addresses[localIdx] = address;
+            notifyListeners();
+            if (localIdx == _selectedAddressIndex) {
+              _lastCalculatedAddressId = null; // force delivery charge recalc
+              updateDeliveryCharge();
+            }
+          }
+
+          // ── Server re-fetch ────────────────────────────────────────────
+          // Reload from API to pick up any server-side changes (e.g. coords).
+          // After the fetch, re-apply floor/lift values if the server returned
+          // null (i.e. the backend hasn't stored them yet).
           await loadAddresses();
+
+          // Re-apply the user's floor/lift if server wiped them with null
+          final afterIdx = _addresses.indexWhere((a) => a.id == address.id);
+          if (afterIdx != -1) {
+            final serverAddr = _addresses[afterIdx];
+            final needsPatch = (serverAddr.floorNumber == null &&
+                    address.floorNumber != null) ||
+                (serverAddr.hasLift == null && address.hasLift != null) ||
+                (serverAddr.floorNumber != null &&
+                    address.floorNumber != null &&
+                    serverAddr.floorNumber != address.floorNumber) ||
+                (serverAddr.hasLift != null &&
+                    address.hasLift != null &&
+                    serverAddr.hasLift != address.hasLift);
+            if (needsPatch) {
+              _addresses[afterIdx] = serverAddr.copyWith(
+                floorNumber: address.floorNumber,
+                hasLift: address.hasLift,
+              );
+              notifyListeners();
+              if (afterIdx == _selectedAddressIndex) {
+                _lastCalculatedAddressId = null;
+                updateDeliveryCharge();
+              }
+            }
+          }
         }
         return result;
       } catch (e) {

@@ -1252,6 +1252,9 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                             // Priority fix: added lat/lng for backend compatibility
                             'lat': selectedAddr.latitude,
                             'lng': selectedAddr.longitude,
+                            // Floor / Lift — always include so backend calculates correctly
+                            'floorNumber': selectedAddr.floorNumber ?? 0,
+                            'hasLift': selectedAddr.hasLift ?? false,
                             if (selectedAddr.latitude != null &&
                                 selectedAddr.longitude != null)
                               'coordinates': {
@@ -1312,6 +1315,9 @@ class _PaymentMethodPageState extends ConsumerState<PaymentMethodPage> {
                                 deliverySlot: _selectedSlot,
                                 hasEmptyBottles: cartProvider.hasEmptyBottles,
                                 returnedBottlesCount: cartProvider.returnedBottlesCount,
+                                // Always send floor/lift so the backend records & charges correctly
+                                floorNumber: selectedAddr.floorNumber ?? 0,
+                                hasLift: selectedAddr.hasLift ?? false,
                                 coordinates: (selectedAddr.latitude != null &&
                                         selectedAddr.longitude != null)
                                     ? {

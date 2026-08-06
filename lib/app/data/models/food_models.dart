@@ -317,6 +317,9 @@ class UserAddress {
     this.hasLift,
   });
 
+  // Sentinel object used to distinguish "not provided" from explicit null.
+  static const Object _unset = Object();
+
   UserAddress copyWith({
     String? id,
     String? title,
@@ -327,8 +330,8 @@ class UserAddress {
     bool? isDefault,
     double? latitude,
     double? longitude,
-    int? floorNumber,
-    bool? hasLift,
+    Object? floorNumber = _unset,  // accepts int? or _unset
+    Object? hasLift = _unset,      // accepts bool? or _unset
   }) {
     return UserAddress(
       id: id ?? this.id,
@@ -340,8 +343,10 @@ class UserAddress {
       isDefault: isDefault ?? this.isDefault,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
-      floorNumber: floorNumber ?? this.floorNumber,
-      hasLift: hasLift ?? this.hasLift,
+      // If caller explicitly passed a value (even null/0/false), use it.
+      // If caller omitted the param entirely (_unset), keep existing value.
+      floorNumber: identical(floorNumber, _unset) ? this.floorNumber : floorNumber as int?,
+      hasLift: identical(hasLift, _unset) ? this.hasLift : hasLift as bool?,
     );
   }
 }

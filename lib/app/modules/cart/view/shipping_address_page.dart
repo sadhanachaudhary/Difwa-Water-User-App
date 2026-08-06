@@ -79,7 +79,7 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
         isDefault: _isDefault,
         latitude: _latitude,
         longitude: _longitude,
-        floorNumber: int.tryParse(_floorCtrl.text.trim()),
+        floorNumber: int.tryParse(_floorCtrl.text.trim()) ?? 0,
         hasLift: _hasLift,
       );
 
@@ -294,7 +294,7 @@ class _ShippingAddressPageState extends ConsumerState<ShippingAddressPage> {
                               setSheet(() => isSaving = true);
                               final updatedAddr = addr.copyWith(
                                 floorNumber:
-                                    int.tryParse(floorCtrl.text.trim()),
+                                    int.tryParse(floorCtrl.text.trim()) ?? 0,
                                 hasLift: hasLiftVal,
                               );
                               final res =

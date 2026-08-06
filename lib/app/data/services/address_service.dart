@@ -45,8 +45,9 @@ class AddressService {
             "lat": latitude,
             "lng": longitude,
           },
-        if (floorNumber != null) "floorNumber": floorNumber,
-        if (hasLift != null) "hasLift": hasLift,
+        // Always send floor/lift — never omit, even when 0 or false
+        "floorNumber": floorNumber ?? 0,
+        "hasLift": hasLift ?? false,
       },
       requiresAuth: true,
     );
@@ -92,8 +93,9 @@ class AddressService {
           "lat": latitude,
           "lng": longitude,
         },
-      if (floorNumber != null) "floorNumber": floorNumber,
-      if (hasLift != null) "hasLift": hasLift,
+      // Always send floor/lift — never omit, even when 0 or false
+      "floorNumber": floorNumber ?? 0,
+      "hasLift": hasLift ?? false,
     };
 
     if (kDebugMode) {

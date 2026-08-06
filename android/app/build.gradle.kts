@@ -52,8 +52,8 @@ android {
         targetSdk = 36
         val flutterVersionCode = localProperties.getProperty("flutter.versionCode")
         val flutterVersionName = localProperties.getProperty("flutter.versionName")
-        versionCode = flutterVersionCode?.toIntOrNull() ?: 54
-        versionName = flutterVersionName ?: "1.0.53"
+        versionCode = flutterVersionCode?.toIntOrNull() ?: 61
+        versionName = flutterVersionName ?: "1.0.61"
 
         // Inject Maps API key into AndroidManifest.xml as ${MAPS_API_KEY}
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
